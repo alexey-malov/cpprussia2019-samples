@@ -89,7 +89,7 @@ struct Indicator : enable_shared_from_this<Indicator>
 	{
 		m_cancellationToken.Cancel();
 		m_cancellationToken = m_generator->Start(interval,
-			[this, weakThis = weak_from_this()](unsigned value) {
+			[weakThis = weak_from_this()](unsigned value) {
 				if (auto strongThis = weakThis.lock())
 				{
 					cout << strongThis->m_name << ": " << value << endl;

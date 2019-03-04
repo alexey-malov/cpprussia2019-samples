@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "weak-this", "weak-this\weak
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sp_aliasing_constructor", "sp_aliasing_constructor\sp_aliasing_constructor.vcxproj", "{F1E62F7D-4F9E-4895-8C9E-0EE7DCC2304C}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "strong-this", "strong-this\strong-this.vcxproj", "{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -41,6 +43,14 @@ Global
 		{F1E62F7D-4F9E-4895-8C9E-0EE7DCC2304C}.Release|x64.Build.0 = Release|x64
 		{F1E62F7D-4F9E-4895-8C9E-0EE7DCC2304C}.Release|x86.ActiveCfg = Release|Win32
 		{F1E62F7D-4F9E-4895-8C9E-0EE7DCC2304C}.Release|x86.Build.0 = Release|Win32
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Debug|x64.ActiveCfg = Debug|x64
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Debug|x64.Build.0 = Debug|x64
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Debug|x86.ActiveCfg = Debug|Win32
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Debug|x86.Build.0 = Debug|Win32
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Release|x64.ActiveCfg = Release|x64
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Release|x64.Build.0 = Release|x64
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Release|x86.ActiveCfg = Release|Win32
+		{55D6EDFF-4B8F-4891-B0CC-EB39776764C2}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
