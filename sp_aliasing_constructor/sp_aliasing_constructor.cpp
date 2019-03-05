@@ -9,8 +9,8 @@ using namespace std;
 
 struct Inner
 {
-	friend struct Outer;
-	Inner(string name, weak_ptr<Outer> outer)
+	friend struct Foo;
+	Inner(string name, weak_ptr<Foo> outer)
 		: m_name(move(name))
 		, m_outer(move(outer))
 	{
@@ -27,23 +27,23 @@ struct Inner
 		return m_name;
 	}
 
-	shared_ptr<Outer> GetOuter() const
+	shared_ptr<Foo> GetOuter() const
 	{
 		return m_outer.lock();
 	}
 
 private:
 	string m_name;
-	weak_ptr<Outer> m_outer;
+	weak_ptr<Foo> m_outer;
 };
 
-struct Outer : enable_shared_from_this<Outer>
+struct Foo : enable_shared_from_this<Foo>
 {
-	Outer() = default;
-	Outer(const Outer&) = delete;
-	Outer& operator=(const Outer&) = delete;
+	Foo() = default;
+	Foo(const Foo&) = delete;
+	Foo& operator=(const Foo&) = delete;
 
-	~Outer()
+	~Foo()
 	{
 		cout << "~External()\n";
 	}
@@ -73,7 +73,7 @@ struct Outer : enable_shared_from_this<Outer>
 
 int main()
 {
-	auto external = make_shared<Outer>();
+	auto external = make_shared<Foo>();
 	auto part = external->CreateNewPart("part 1");
 	assert(part);
 	assert(external->GetPart(0) == part);
