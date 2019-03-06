@@ -3,6 +3,124 @@
 template <typename T>
 class Cow
 {
-public:
+	template <typename U>
+	struct CopyConstr
+	{
+		static auto Copy(U const& other)
+		{
+			return std::make_shared<U>(other);
+		}
+	};
 
+	template <typename U>
+	struct CloneConstr
+	{
+		static auto Copy(U const& other)
+		{
+			return other.Clone();
+		}
+	};
+	using CopyClass = typename std::conditional_t<!std::is_abstract_v<T> && std::is_copy_constructible_v<T>,
+		CopyConstr<T>,
+		CloneConstr<T>>;
+
+public:
+	class WriteProxy
+	{
+	public:
+		T* operator->()
+		{
+			return m_p;
+		}
+
+	private:
+		friend class Cow;
+		WriteProxy(WriteProxy const&) = default;
+		WriteProxy& operator=(WriteProxy const&) = default;
+
+		WriteProxy(T* p)
+			: m_p(p)
+		{
+		}
+
+		T* m_p;
+	};
+
+	template <typename... Args, typename = std::enable_if<!std::is_abstract<T>::value>::type>
+	Cow(Args&&... args)
+		: m_shared(std::make_shared<T>(std::forward<Args>(args)...))
+	{
+	}
+
+	Cow(Cow<T>&& rhs)
+		: m_shared(std::move(rhs.m_shared))
+	{
+	}
+
+	template <typename U, typename Deleter>
+	Cow(std::unique_ptr<U, Deleter> pUniqueObj)
+		: m_shared(std::move(pUniqueObj))
+	{
+	}
+
+
+	template <typename U>
+	Cow(Cow<U>& rhs)
+		: m_shared(rhs.m_shared)
+	{
+	}
+
+	Cow(Cow const& rhs) = default;
+
+	template <typename U>
+	Cow& operator=(Cow<U>& rhs)
+	{
+		m_shared = rhs.m_shared;
+		return *this;
+	}
+	Cow& operator=(Cow&& rhs) = default;
+
+	Cow& operator=(Cow const& rhs)
+	{
+		m_shared = rhs.m_shared;
+		return *this;
+	}
+
+	T const& operator*() const
+	{
+		assert(m_shared);
+		return *m_shared;
+	}
+
+	T const* operator->() const
+	{
+		assert(m_shared);
+		return m_shared.get();
+	}
+
+	WriteProxy operator--(int)
+	{
+		assert(m_shared);
+		EnsureUnique();
+		return WriteProxy(m_shared.get());
+	}
+
+	T& Write()
+	{
+		assert(m_shared);
+		EnsureUnique();
+		return *m_shared;
+	}
+
+private:
+	void EnsureUnique()
+	{
+		if (m_shared.use_count() > 1)
+		{
+			m_shared = CopyClass::Copy(*m_shared);
+		}
+	}
+
+private:
+	std::shared_ptr<T> m_shared;
 };
