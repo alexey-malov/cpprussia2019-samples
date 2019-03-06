@@ -52,23 +52,19 @@ public:
 	{
 	}
 
-	Cow(Cow<T>&& rhs)
-		: m_shared(std::move(rhs.m_shared))
-	{
-	}
-
 	template <typename U, typename Deleter>
 	Cow(std::unique_ptr<U, Deleter> pUniqueObj)
 		: m_shared(std::move(pUniqueObj))
 	{
 	}
 
-
 	template <typename U>
 	Cow(Cow<U>& rhs)
 		: m_shared(rhs.m_shared)
 	{
 	}
+
+	Cow(Cow&& rhs) = default;
 
 	Cow(Cow const& rhs) = default;
 
@@ -78,13 +74,10 @@ public:
 		m_shared = rhs.m_shared;
 		return *this;
 	}
+
 	Cow& operator=(Cow&& rhs) = default;
 
-	Cow& operator=(Cow const& rhs)
-	{
-		m_shared = rhs.m_shared;
-		return *this;
-	}
+	Cow& operator=(Cow const& rhs) = default;
 
 	T const& operator*() const
 	{
