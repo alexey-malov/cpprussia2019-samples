@@ -32,6 +32,70 @@ private:
 	int m_val = 0;
 };
 
+struct Shape
+{
+	virtual ~Shape() = default;
+	virtual std::unique_ptr<Shape> clone() const = 0;
+	virtual double getArea() const = 0;
+};
+
+struct Circle : Shape
+{
+	explicit Circle(double radius)
+		: m_radius(radius)
+	{
+	}
+
+	std::unique_ptr<Shape> clone() const override
+	{
+		return std::make_unique<Circle>(*this);
+	}
+
+	double getArea() const override
+	{
+		return M_PI * m_radius * m_radius;
+	}
+
+private:
+	double m_radius;
+};
+
+struct Square : Shape
+{
+	explicit Square(double size)
+		: m_size(size)
+	{
+	}
+
+	std::unique_ptr<Shape> clone() const override
+	{
+		return std::make_unique<Square>(*this);
+	}
+
+	double getArea() const override
+	{
+		return m_size * m_size;
+	}
+
+private:
+	double m_size;
+};
+
+template <typename T>
+struct Clonable
+{
+	static std::shared_ptr<T> clone(const T& v)
+	{
+		return v.clone();
+	}
+};
+
+template <typename Type, template <class T> class Cloner, typename... Args>
+auto MakeCow(Args&&... args)
+{
+	return Cow<Type, Cloner<Type>>(std::forward<Args>(args)...);
+}
+
 int main()
 {
 	{
@@ -44,5 +108,15 @@ int main()
 		Cow<Base> v1(std::make_unique<Derived>());
 		auto v2 = v1;
 		v2--->SetValue(1);
+	}
+
+	{
+		Cow<Circle, Clonable<Circle>> circle(10.0);
+		Cow<Square, Clonable<Shape>> square(5.0);
+		Cow<Shape, Clonable<Shape>> shape = circle;
+		shape = square;
+		shape = circle;
+
+		shape = MakeCow<Circle, Clonable>(10.0);
 	}
 }

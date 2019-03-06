@@ -1,28 +1,33 @@
 #pragma once
 
-template <typename T>
+namespace detail
+{
+
+template <typename U>
+struct CopyConstr
+{
+	static auto Copy(U const& other)
+	{
+		return std::make_shared<U>(other);
+	}
+};
+
+template <typename U>
+struct CloneConstr
+{
+	static auto Copy(U const& other)
+	{
+		return other.Clone();
+	}
+};
+
+} // namespace detail
+
+template <typename T, typename CopyClass = typename std::conditional_t<!std::is_abstract_v<T> && std::is_copy_constructible_v<T>, detail::CopyConstr<T>, detail::CloneConstr<T>>>
 class Cow
 {
-	template <typename U>
-	struct CopyConstr
-	{
-		static auto Copy(U const& other)
-		{
-			return std::make_shared<U>(other);
-		}
-	};
-
-	template <typename U>
-	struct CloneConstr
-	{
-		static auto Copy(U const& other)
-		{
-			return other.Clone();
-		}
-	};
-	using CopyClass = typename std::conditional_t<!std::is_abstract_v<T> && std::is_copy_constructible_v<T>,
-		CopyConstr<T>,
-		CloneConstr<T>>;
+	template <typename U, typename V>
+	friend class Cow;
 
 public:
 	class WriteProxy
@@ -46,13 +51,13 @@ public:
 		T* m_p;
 	};
 
-	template <typename... Args, typename = std::enable_if<!std::is_abstract<T>::value>::type>
+	template <typename... Args, typename = std::enable_if_t<!std::is_abstract_v<T>>>
 	Cow(Args&&... args)
 		: m_shared(std::make_shared<T>(std::forward<Args>(args)...))
 	{
 	}
 
-	Cow(Cow<T>&& rhs)
+	Cow(Cow<T, CopyClass>&& rhs)
 		: m_shared(std::move(rhs.m_shared))
 	{
 	}
@@ -64,23 +69,24 @@ public:
 	}
 
 
-	template <typename U>
-	Cow(Cow<U>& rhs)
+	template <typename U, typename V>
+	Cow(Cow<U, V>& rhs)
 		: m_shared(rhs.m_shared)
 	{
 	}
 
 	Cow(Cow const& rhs) = default;
 
-	template <typename U>
-	Cow& operator=(Cow<U>& rhs)
+	template <typename U, typename V>
+	Cow& operator=(Cow<U, V>& rhs)
 	{
 		m_shared = rhs.m_shared;
 		return *this;
 	}
 	Cow& operator=(Cow&& rhs) = default;
 
-	Cow& operator=(Cow const& rhs)
+	template <typename U, typename V>
+	Cow& operator=(Cow<U, V> const& rhs)
 	{
 		m_shared = rhs.m_shared;
 		return *this;
