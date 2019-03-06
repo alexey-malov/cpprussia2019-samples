@@ -46,7 +46,7 @@ public:
 		T* m_p;
 	};
 
-	template <typename... Args, typename = std::enable_if<!std::is_abstract<T>::value>::type>
+	template <typename... Args, typename = std::enable_if_t<!std::is_abstract_v<T>>>
 	Cow(Args&&... args)
 		: m_shared(std::make_shared<T>(std::forward<Args>(args)...))
 	{
@@ -114,6 +114,5 @@ private:
 		}
 	}
 
-private:
 	std::shared_ptr<T> m_shared;
 };
