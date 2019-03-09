@@ -9,8 +9,8 @@ using namespace std;
 
 struct Inner
 {
-	friend struct Foo;
-	Inner(string name, weak_ptr<Foo> outer)
+	friend struct Outer;
+	Inner(string name, weak_ptr<Outer> outer)
 		: m_name(move(name))
 		, m_outer(move(outer))
 	{
@@ -27,23 +27,23 @@ struct Inner
 		return m_name;
 	}
 
-	shared_ptr<Foo> GetOuter() const
+	shared_ptr<Outer> GetOuter() const
 	{
 		return m_outer.lock();
 	}
 
 private:
 	string m_name;
-	weak_ptr<Foo> m_outer;
+	weak_ptr<Outer> m_outer;
 };
 
-struct Foo : enable_shared_from_this<Foo>
+struct Outer : enable_shared_from_this<Outer>
 {
-	Foo() = default;
-	Foo(const Foo&) = delete;
-	Foo& operator=(const Foo&) = delete;
+	Outer() = default;
+	Outer(const Outer&) = delete;
+	Outer& operator=(const Outer&) = delete;
 
-	~Foo()
+	~Outer()
 	{
 		cout << "~External()\n";
 	}
@@ -71,9 +71,34 @@ struct Foo : enable_shared_from_this<Foo>
 	vector<unique_ptr<Inner>> m_removedParts;
 };
 
+template <typename T>
+shared_ptr<T> MakeUnowningSP(T& value)
+{
+	return { shared_ptr<T>(), &value };
+}
+
+struct Bar
+{
+};
+
+void Foo(shared_ptr<Bar> bar)
+{
+
+}
+
 int main()
 {
-	auto external = make_shared<Foo>();
+	{
+		Bar bar;
+		auto sp = MakeUnowningSP(bar);
+		weak_ptr weakBar(sp);
+		assert(sp.get());
+		assert(weakBar.expired());
+		assert(!weakBar.lock());
+		Foo(MakeUnowningSP(bar));
+	}
+
+	auto external = make_shared<Outer>();
 	auto part = external->CreateNewPart("part 1");
 	assert(part);
 	assert(external->GetPart(0) == part);

@@ -34,15 +34,15 @@ private:
 
 int main()
 {
+	using namespace std;
 	{
-		Cow<std::vector<int>> v1(100000u);
+		Cow<vector<int>> v1(100000u);
 		auto v2 = v1;
 		v2--->push_back(42);
 	}
 
 	{
-		Cow<Base> v1(std::make_unique<Derived>());
-		auto v2 = v1;
-		v2--->SetValue(1);
+		Cow<vector<int>> v(100000u, 42);
+		Cow<Base> base(make_unique<Derived>());
 	}
 }
