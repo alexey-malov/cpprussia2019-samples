@@ -25,9 +25,8 @@ class Cow
 		CloneConstr<T>>;
 
 public:
-	class WriteProxy
+	struct WriteProxy
 	{
-	public:
 		T* operator->()
 		{
 			return m_p;
@@ -36,8 +35,7 @@ public:
 	private:
 		friend class Cow;
 		WriteProxy(WriteProxy const&) = default;
-		WriteProxy& operator=(WriteProxy const&) = default;
-
+		WriteProxy& operator=(WriteProxy const&) = delete;
 		WriteProxy(T* p)
 			: m_p(p)
 		{
@@ -95,7 +93,7 @@ public:
 	{
 		assert(m_shared);
 		EnsureUnique();
-		return WriteProxy(m_shared.get());
+		return { m_shared.get() };
 	}
 
 	T& Write()
