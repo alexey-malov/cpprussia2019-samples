@@ -92,7 +92,6 @@ int main()
 		Bar bar;
 		auto sp = MakeUnowningSP(bar);
 		weak_ptr weakBar(sp);
-		assert(sp.get());
 		assert(weakBar.expired());
 		assert(!weakBar.lock());
 		Foo(MakeUnowningSP(bar));
