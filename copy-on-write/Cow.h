@@ -56,8 +56,17 @@ public:
 	{
 	}
 
+	template <class U>
+	friend class Cow;
+
 	template <typename U>
 	Cow(Cow<U>& rhs)
+		: m_shared(rhs.m_shared)
+	{
+	}
+
+	template <typename U>
+	Cow(const Cow<U>& rhs)
 		: m_shared(rhs.m_shared)
 	{
 	}
