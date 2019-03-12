@@ -5,28 +5,28 @@
 
 using namespace std;
 
-struct Foo;
+struct Outer;
 
 struct Inner
 {
-	Inner(weak_ptr<Foo> outer)
+	Inner(weak_ptr<Outer> outer)
 		: m_outer(move(outer))
 	{
 	}
 
 private:
-	weak_ptr<Foo> m_outer;
+	weak_ptr<Outer> m_outer;
 };
 
-struct Foo
-	: public enable_shared_from_this<Foo>
+struct Outer
+	: public enable_shared_from_this<Outer>
 {
-	static shared_ptr<Foo> Create(int arg)
+	static shared_ptr<Outer> Create(int arg)
 	{
-		struct Wrapper : Foo
+		struct Wrapper : Outer
 		{
 			Wrapper(int val)
-				: Foo(val)
+				: Outer(val)
 			{
 			}
 		};
@@ -35,9 +35,9 @@ struct Foo
 		return foo;
 	}
 
-	static shared_ptr<Foo> CreateBad(int arg)
+	static shared_ptr<Outer> CreateBad(int arg)
 	{
-		shared_ptr<Foo> foo(new Foo(arg)); // 2 allocations
+		shared_ptr<Outer> foo(new Outer(arg)); // 2 allocations
 		foo->Init();
 		return foo;
 	}
@@ -49,7 +49,7 @@ private:
 		m_inner = make_shared<Inner>(self);
 	}
 
-	explicit Foo(int val)
+	explicit Outer(int val)
 		: m_value(val)
 	{
 	}
@@ -59,6 +59,6 @@ private:
 
 int main()
 {
-	auto foo = Foo::Create(42);
+	auto foo = Outer::Create(42);
 	return 0;
 }
