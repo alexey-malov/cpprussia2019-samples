@@ -18,7 +18,7 @@ protected:
 		++m_refCount;
 	}
 
-	bool Release() const
+	[[nodiscard]] bool Release() const
 	{
 		if (--m_refCount == 0)
 		{
@@ -73,13 +73,13 @@ class IDetachable
 {
 public:
 	virtual ~IDetachable() = default;
-	virtual bool TryDeleteIfNot(const IDetachable* detachable) const = 0;
+	virtual bool InternalTryDeleteIfNotEqualTo(const IDetachable* detachable) const = 0;
 };
 
 class IDetachableParent : public IDetachable
 {
 public:
-	virtual void Destroy() const = 0;
+	virtual void InternalDestroy() const = 0;
 	virtual void InternalAddChild(const IDetachable* child) = 0;
 	virtual void InternalRemoveChild(IDetachable* child) = 0;
 };
@@ -87,7 +87,7 @@ public:
 template <typename T>
 class DetachableRefCounted
 	: public RefCounted<T>
-	, public IDetachableParent
+	, protected IDetachableParent
 {
 public:
 	void SetParent(IDetachableParent* parent)
@@ -135,17 +135,17 @@ private:
 
 	void DeleteSelfIfNeeded() const
 	{
-		if (TryDeleteIfNot(this))
+		if (InternalTryDeleteIfNotEqualTo(this))
 		{
-			Destroy();
+			InternalDestroy();
 		}
 	}
 
-	void Destroy() const override
+	void InternalDestroy() const override
 	{
 		if (m_parent)
 		{
-			m_parent->Destroy();
+			m_parent->InternalDestroy();
 		}
 		else
 		{
@@ -153,19 +153,19 @@ private:
 		}
 	}
 
-	bool TryDeleteIfNot(const IDetachable* detachable) const override
+	bool InternalTryDeleteIfNotEqualTo(const IDetachable* detachable) const override
 	{
 		if (!this->RefCountIsZero())
 		{
 			return false;
 		}
-		if (m_parent && m_parent != detachable && !m_parent->TryDeleteIfNot(this))
+		if (m_parent && m_parent != detachable && !m_parent->InternalTryDeleteIfNotEqualTo(this))
 		{
 			return false;
 		}
 		for (auto& child : m_children)
 		{
-			if (child != detachable && !child->TryDeleteIfNot(this))
+			if (child != detachable && !child->InternalTryDeleteIfNotEqualTo(this))
 			{
 				return false;
 			}

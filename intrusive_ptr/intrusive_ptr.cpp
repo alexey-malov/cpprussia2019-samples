@@ -15,7 +15,6 @@ public:
 	{
 	}
 
-	
 	boost::intrusive_ptr<Outer> GetOuter() const;
 
 	~Inner()
@@ -26,8 +25,6 @@ public:
 private:
 	Outer* m_outer;
 };
-
-
 
 class Outer : public DetachableRefCounted<Outer>
 {
@@ -69,7 +66,7 @@ int main()
 	auto inner = outer->GetInner();
 	outer.reset();
 	outer = inner->GetOuter();
-	outer->RemoveInner();
+	//outer->RemoveInner();
 	outer.reset();
 	inner.reset();
 	std::cout << "Hello World!\n";
