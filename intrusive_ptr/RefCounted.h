@@ -51,6 +51,93 @@ public:
 	virtual void InternalRemoveChild(IDetachable* child) = 0;
 };
 
+class DetachableParentImpl : protected IDetachableParent
+{
+public:
+	void SetParent(IDetachableParent* parent)
+	{
+		assert(!m_parent && parent);
+		m_parent = parent;
+		m_parent->InternalAddChild(this);
+	}
+
+	void DetachFromParent()
+	{
+		if (m_parent)
+		{
+			m_parent->InternalRemoveChild(this);
+			m_parent = nullptr;
+			DeleteSelfIfNeeded();
+		}
+	}
+
+protected:
+	~DetachableParentImpl()
+	{
+		for (auto* child : m_children)
+		{
+			delete child;
+		}
+	}
+
+	void DeleteSelfIfNeeded() const
+	{
+		if (InternalTryDeleteIfNotEqualTo(this))
+		{
+			InternalDestroy();
+		}
+	}
+
+private:
+	void InternalDestroy() const override
+	{
+		if (m_parent)
+		{
+			m_parent->InternalDestroy();
+		}
+		else
+		{
+			delete this;
+		}
+	}
+
+	void InternalRemoveChild(IDetachable* child) override
+	{
+		m_children.erase(child);
+		DeleteSelfIfNeeded();
+	}
+
+	void InternalAddChild(IDetachable const* child) override
+	{
+		m_children.insert(child);
+	}
+
+	bool InternalTryDeleteIfNotEqualTo(const IDetachable* detachable) const override
+	{
+		if (!InternalRefCountIsZero())
+		{
+			return false;
+		}
+		if (m_parent && m_parent != detachable && !m_parent->InternalTryDeleteIfNotEqualTo(this))
+		{
+			return false;
+		}
+		for (auto& child : m_children)
+		{
+			if (child != detachable && !child->InternalTryDeleteIfNotEqualTo(this))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	virtual bool InternalRefCountIsZero() const = 0;
+
+	mutable std::unordered_set<const IDetachable*> m_children;
+	IDetachableParent* m_parent = nullptr;
+};
+
 } // namespace detail
 
 template <typename T>
@@ -99,91 +186,16 @@ void intrusive_ptr_release(const RefCounted<T>* p)
 template <typename T>
 class DetachableRefCounted
 	: public RefCounted<T>
-	, protected detail::IDetachableParent
+	, public detail::DetachableParentImpl
 {
-public:
-	void SetParent(IDetachableParent* parent)
-	{
-		assert(!m_parent && parent);
-		m_parent = parent;
-		m_parent->InternalAddChild(this);
-	}
-
-	void DetachFromParent()
-	{
-		if (m_parent)
-		{
-			m_parent->InternalRemoveChild(this);
-			m_parent = nullptr;
-			DeleteSelfIfNeeded();
-		}
-	}
-
-protected:
-	~DetachableRefCounted()
-	{
-		for (auto* child : m_children)
-		{
-			delete child;
-		}
-	}
-
 private:
-	void InternalRemoveChild(IDetachable* child) override
-	{
-		m_children.erase(child);
-		DeleteSelfIfNeeded();
-	}
-
-	void InternalAddChild(IDetachable const* child) override
-	{
-		m_children.insert(child);
-	}
-
 	void OnFinalRelease() const override
 	{
 		DeleteSelfIfNeeded();
 	}
 
-	void DeleteSelfIfNeeded() const
+	bool InternalRefCountIsZero() const override
 	{
-		if (InternalTryDeleteIfNotEqualTo(this))
-		{
-			InternalDestroy();
-		}
+		return this->RefCountIsZero();
 	}
-
-	void InternalDestroy() const override
-	{
-		if (m_parent)
-		{
-			m_parent->InternalDestroy();
-		}
-		else
-		{
-			delete this;
-		}
-	}
-
-	bool InternalTryDeleteIfNotEqualTo(const IDetachable* detachable) const override
-	{
-		if (!this->RefCountIsZero())
-		{
-			return false;
-		}
-		if (m_parent && m_parent != detachable && !m_parent->InternalTryDeleteIfNotEqualTo(this))
-		{
-			return false;
-		}
-		for (auto& child : m_children)
-		{
-			if (child != detachable && !child->InternalTryDeleteIfNotEqualTo(this))
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-	mutable std::unordered_set<const IDetachable*> m_children;
-	IDetachableParent* m_parent = nullptr;
 };

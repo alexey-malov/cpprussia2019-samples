@@ -66,8 +66,7 @@ int main()
 	auto inner = outer->GetInner();
 	outer.reset();
 	outer = inner->GetOuter();
-	//outer->RemoveInner();
+	outer->RemoveInner();
 	outer.reset();
 	inner.reset();
-	std::cout << "Hello World!\n";
 }
