@@ -2,42 +2,75 @@
 //
 
 #include "pch.h"
+#include "RefCounted.h"
+//#include <atlcom.h>
 
-namespace detail
-{
+class Outer;
 
-class RefCountedBase
+class Inner : public DetachableRefCounted<Inner>
 {
 public:
-	virtual ~RefCountedBase() = default;
-
-	void AddRef() const
+	Inner(Outer* outer)
+		: m_outer(outer)
 	{
-		++m_refCount;
 	}
 
-	bool Release() const
+	
+	boost::intrusive_ptr<Outer> GetOuter() const;
+
+	~Inner()
 	{
-		if (--m_refCount == 0)
-		{
-			return true;
-		}
-		return false;
+		std::cout << "~Inner\n";
 	}
 
 private:
-	mutable int m_refCount = 1;
+	Outer* m_outer;
 };
 
-} // namespace detail
 
-template <typename T>
-class RefCounted : public RefCountedBase
+
+class Outer : public DetachableRefCounted<Outer>
 {
+public:
+	Outer()
+	{
+		auto inner = new Inner(this);
+		inner->SetParent(this);
+		m_inner = inner;
+	}
 
+	boost::intrusive_ptr<Inner> GetInner() const
+	{
+		return m_inner;
+	}
+
+	void RemoveInner()
+	{
+		m_inner->DetachFromParent();
+	}
+
+	~Outer()
+	{
+		std::cout << "~Outer\n";
+	}
+
+private:
+	Inner* m_inner = nullptr;
 };
+
+boost::intrusive_ptr<Outer> Inner::GetOuter() const
+{
+	return m_outer;
+}
 
 int main()
 {
+	boost::intrusive_ptr<Outer> outer(new Outer());
+	auto inner = outer->GetInner();
+	outer.reset();
+	outer = inner->GetOuter();
+	outer->RemoveInner();
+	outer.reset();
+	inner.reset();
 	std::cout << "Hello World!\n";
 }
