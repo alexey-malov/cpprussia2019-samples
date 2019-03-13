@@ -13,12 +13,12 @@ protected:
 	RefCountedBase() = default;
 	virtual ~RefCountedBase() = default;
 
-	void AddRef() const
+	void InternalAddRef() const
 	{
 		++m_refCount;
 	}
 
-	[[nodiscard]] bool Release() const
+	[[nodiscard]] bool InternalRelease() const
 	{
 		if (--m_refCount == 0)
 		{
@@ -36,20 +36,10 @@ private:
 	mutable int m_refCount = 0;
 };
 
-class IDetachable
+class Detachable
 {
 public:
-	virtual ~IDetachable() = default;
-	virtual bool InternalTryDeleteIfNotEqualTo(const IDetachable* detachable) const = 0;
-	virtual void InternalDestroy() const = 0;
-	virtual void InternalAddChild(const IDetachable* child) = 0;
-	virtual void InternalRemoveChild(IDetachable* child) = 0;
-};
-
-class DetachableImpl : protected IDetachable
-{
-public:
-	void SetParent(IDetachable* parent)
+	void SetParent(Detachable* parent)
 	{
 		assert(!m_parent && parent);
 		m_parent = parent;
@@ -67,7 +57,7 @@ public:
 	}
 
 protected:
-	~DetachableImpl()
+	virtual ~Detachable()
 	{
 		for (auto* child : m_children)
 		{
@@ -84,7 +74,7 @@ protected:
 	}
 
 private:
-	void InternalDestroy() const override
+	void InternalDestroy() const
 	{
 		if (m_parent)
 		{
@@ -96,18 +86,18 @@ private:
 		}
 	}
 
-	void InternalRemoveChild(IDetachable* child) override
+	void InternalRemoveChild(Detachable* child)
 	{
 		m_children.erase(child);
 		DeleteSelfIfNeeded();
 	}
 
-	void InternalAddChild(IDetachable const* child) override
+	void InternalAddChild(Detachable const* child)
 	{
 		m_children.insert(child);
 	}
 
-	bool InternalTryDeleteIfNotEqualTo(const IDetachable* detachable) const override
+	bool InternalTryDeleteIfNotEqualTo(const Detachable* detachable) const
 	{
 		if (!InternalRefCountIsZero())
 		{
@@ -129,8 +119,8 @@ private:
 
 	virtual bool InternalRefCountIsZero() const = 0;
 
-	mutable std::unordered_set<const IDetachable*> m_children;
-	IDetachable* m_parent = nullptr;
+	mutable std::unordered_set<const Detachable*> m_children;
+	Detachable* m_parent = nullptr;
 };
 
 } // namespace detail
@@ -141,12 +131,12 @@ class RefCounted : public detail::RefCountedBase
 public:
 	virtual void AddRef() const
 	{
-		RefCountedBase::AddRef();
+		InternalAddRef();
 	}
 
 	virtual void Release() const
 	{
-		if (RefCountedBase::Release())
+		if (InternalRelease())
 		{
 			OnFinalRelease();
 		}
@@ -181,7 +171,7 @@ void intrusive_ptr_release(const RefCounted<T>* p)
 template <typename T>
 class DetachableRefCounted
 	: public RefCounted<T>
-	, public detail::DetachableImpl
+	, public detail::Detachable
 {
 private:
 	void OnFinalRelease() const override
