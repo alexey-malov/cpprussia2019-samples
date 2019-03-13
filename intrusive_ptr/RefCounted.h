@@ -41,20 +41,15 @@ class IDetachable
 public:
 	virtual ~IDetachable() = default;
 	virtual bool InternalTryDeleteIfNotEqualTo(const IDetachable* detachable) const = 0;
-};
-
-class IDetachableParent : public IDetachable
-{
-public:
 	virtual void InternalDestroy() const = 0;
 	virtual void InternalAddChild(const IDetachable* child) = 0;
 	virtual void InternalRemoveChild(IDetachable* child) = 0;
 };
 
-class DetachableParentImpl : protected IDetachableParent
+class DetachableImpl : protected IDetachable
 {
 public:
-	void SetParent(IDetachableParent* parent)
+	void SetParent(IDetachable* parent)
 	{
 		assert(!m_parent && parent);
 		m_parent = parent;
@@ -72,7 +67,7 @@ public:
 	}
 
 protected:
-	~DetachableParentImpl()
+	~DetachableImpl()
 	{
 		for (auto* child : m_children)
 		{
@@ -135,7 +130,7 @@ private:
 	virtual bool InternalRefCountIsZero() const = 0;
 
 	mutable std::unordered_set<const IDetachable*> m_children;
-	IDetachableParent* m_parent = nullptr;
+	IDetachable* m_parent = nullptr;
 };
 
 } // namespace detail
@@ -186,7 +181,7 @@ void intrusive_ptr_release(const RefCounted<T>* p)
 template <typename T>
 class DetachableRefCounted
 	: public RefCounted<T>
-	, public detail::DetachableParentImpl
+	, public detail::DetachableImpl
 {
 private:
 	void OnFinalRelease() const override
