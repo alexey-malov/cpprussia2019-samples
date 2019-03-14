@@ -7,7 +7,7 @@
 
 class Outer;
 
-class Inner : public DetachableRefCounted<Inner>
+class Inner : public DetachableRefCounted
 {
 public:
 	Inner(Outer* outer)
@@ -26,24 +26,29 @@ private:
 	Outer* m_outer;
 };
 
-class Outer : public DetachableRefCounted<Outer>
+class Outer : public DetachableRefCounted
 {
 public:
 	Outer()
 	{
-		auto inner = new Inner(this);
-		inner->SetParent(this);
-		m_inner = inner;
+		m_inner = std::make_unique<Inner>(this);
+		m_inner->SetParent(this);
 	}
 
 	boost::intrusive_ptr<Inner> GetInner() const
 	{
-		return m_inner;
+		return m_inner.get();
+	}
+
+	void AddExtraInner(Inner* inner)
+	{
+		m_extraInner.reset(inner);
+		m_extraInner->SetParent(this);
 	}
 
 	void RemoveInner()
 	{
-		m_inner->DetachFromParent();
+		m_inner.release()->DetachFromParent();
 	}
 
 	~Outer()
@@ -52,7 +57,8 @@ public:
 	}
 
 private:
-	Inner* m_inner = nullptr;
+	std::unique_ptr<Inner> m_inner;
+	std::unique_ptr<Inner> m_extraInner;
 };
 
 boost::intrusive_ptr<Outer> Inner::GetOuter() const
@@ -64,9 +70,15 @@ int main()
 {
 	boost::intrusive_ptr<Outer> outer(new Outer());
 	auto inner = outer->GetInner();
+
+	boost::intrusive_ptr<Inner> extraInner(new Inner(nullptr));
+	outer->AddExtraInner(extraInner.get());
+
+	extraInner.reset();
 	outer.reset();
-	outer = inner->GetOuter();
-	outer->RemoveInner();
-	outer.reset();
+	//inner.reset();
+	//outer = inner->GetOuter();
+	//outer->RemoveInner();
 	inner.reset();
+	//outer.reset();
 }

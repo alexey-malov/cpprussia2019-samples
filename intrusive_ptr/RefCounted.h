@@ -3,184 +3,156 @@
 namespace detail
 {
 
-class RefCountedBase
+class RefCounter
 {
 public:
-	RefCountedBase(const RefCountedBase&) = delete;
-	RefCountedBase& operator=(const RefCountedBase&) = delete;
+	RefCounter(const RefCounter&) = delete;
+	RefCounter& operator=(const RefCounter&) = delete;
 
-protected:
-	RefCountedBase() = default;
-	virtual ~RefCountedBase() = default;
+	RefCounter() = default;
 
-	void InternalAddRef() const
+	void IncrementBy(int delta) const
 	{
-		++m_refCount;
+		m_refCount += delta;
 	}
 
-	[[nodiscard]] bool InternalRelease() const
+	[[nodiscard]] bool DecrementBy(int delta) const
 	{
-		if (--m_refCount == 0)
+		if ((m_refCount -= delta) == 0)
 		{
 			return true;
 		}
 		return false;
 	}
 
-	bool RefCountIsZero() const
+	int GetCount() const
 	{
-		return m_refCount == 0;
+		return m_refCount;
 	}
 
 private:
 	mutable int m_refCount = 0;
 };
 
-class Detachable
+class RefCountedBase
 {
 public:
-	void SetParent(Detachable* parent)
-	{
-		assert(!m_parent && parent);
-		m_parent = parent;
-		m_parent->InternalAddChild(this);
-	}
+	virtual void AddRef() const = 0;
 
-	void DetachFromParent()
-	{
-		if (m_parent)
-		{
-			m_parent->InternalRemoveChild(this);
-			m_parent = nullptr;
-			DeleteSelfIfNeeded();
-		}
-	}
+	virtual void Release() const = 0;
+
+	RefCountedBase(const RefCountedBase&) = delete;
+	RefCountedBase& operator=(const RefCountedBase&) = delete;
 
 protected:
-	virtual ~Detachable()
+	RefCountedBase() = default;
+
+	virtual ~RefCountedBase() = default;
+};
+
+void intrusive_ptr_add_ref(const RefCountedBase* p)
+{
+	p->AddRef();
+}
+
+void intrusive_ptr_release(const RefCountedBase* p)
+{
+	p->Release();
+}
+
+} // namespace detail
+
+class RefCounted : public detail::RefCountedBase
+{
+public:
+	void AddRef() const final
 	{
-		for (auto* child : m_children)
-		{
-			delete child;
-		}
+		m_counter.IncrementBy(1);
 	}
 
-	void DeleteSelfIfNeeded() const
+	void Release() const final
 	{
-		if (InternalTryDeleteIfNotEqualTo(this))
-		{
-			InternalDestroy();
-		}
-	}
-
-private:
-	void InternalDestroy() const
-	{
-		if (m_parent)
-		{
-			m_parent->InternalDestroy();
-		}
-		else
+		if (m_counter.DecrementBy(1))
 		{
 			delete this;
 		}
 	}
 
-	void InternalRemoveChild(Detachable* child)
+private:
+	detail::RefCounter m_counter;
+};
+
+class DetachableRefCounted : public detail::RefCountedBase
+{
+public:
+	void AddRef() const final
 	{
-		m_children.erase(child);
-		DeleteSelfIfNeeded();
+		AddRefs(1);
 	}
 
-	void InternalAddChild(Detachable const* child)
+	void Release() const final
 	{
-		m_children.insert(child);
+		ReleaseRefs(1);
 	}
 
-	bool InternalTryDeleteIfNotEqualTo(const Detachable* detachable) const
+	void SetParent(DetachableRefCounted* outer)
 	{
-		if (!InternalRefCountIsZero())
+		assert(!m_outer && outer);
+		m_outer = outer;
+		m_outer->AddRefs(m_counter.GetCount());
+	}
+
+	void DetachFromParent()
+	{
+		if (m_outer)
 		{
-			return false;
+			m_outer->ReleaseRefs(m_counter.GetCount());
+			m_outer = nullptr;
+			ReleaseRefs(0);
 		}
-		if (m_parent && m_parent != detachable && !m_parent->InternalTryDeleteIfNotEqualTo(this))
+	}
+
+private:
+	void OuterAddRef(int refCount) const
+	{
+		if (m_outer)
 		{
-			return false;
+			m_outer->AddRefs(refCount);
 		}
-		for (auto& child : m_children)
+	}
+
+	bool OuterRelease(int refCount) const
+	{
+		if (m_outer)
 		{
-			if (child != detachable && !child->InternalTryDeleteIfNotEqualTo(this))
-			{
-				return false;
-			}
+			m_outer->ReleaseRefs(refCount);
+			return false;
 		}
 		return true;
 	}
 
-	virtual bool InternalRefCountIsZero() const = 0;
-
-	mutable std::unordered_set<const Detachable*> m_children;
-	Detachable* m_parent = nullptr;
-};
-
-} // namespace detail
-
-template <typename T>
-class RefCounted : public detail::RefCountedBase
-{
-public:
-	virtual void AddRef() const
+	void AddRefs(int refCount) const
 	{
-		InternalAddRef();
+		OuterAddRef(refCount);
+		m_counter.IncrementBy(refCount);
 	}
 
-	virtual void Release() const
+	void ReleaseRefs(int refCount) const
 	{
-		if (InternalRelease())
+		if (m_counter.DecrementBy(refCount))
 		{
-			OnFinalRelease();
+			if (OuterRelease(refCount))
+			{
+				delete this;
+			}
+		}
+		else
+		{
+			OuterRelease(refCount);
 		}
 	}
 
-	RefCounted(const RefCounted&) = delete;
-	RefCounted& operator=(const RefCounted&) = delete;
-
-protected:
-	RefCounted() = default;
-	virtual ~RefCounted() = default;
-
 private:
-	virtual void OnFinalRelease() const
-	{
-		delete this;
-	}
-};
-
-template <typename T>
-void intrusive_ptr_add_ref(const RefCounted<T>* p)
-{
-	p->AddRef();
-}
-
-template <typename T>
-void intrusive_ptr_release(const RefCounted<T>* p)
-{
-	p->Release();
-}
-
-template <typename T>
-class DetachableRefCounted
-	: public RefCounted<T>
-	, public detail::Detachable
-{
-private:
-	void OnFinalRelease() const override
-	{
-		DeleteSelfIfNeeded();
-	}
-
-	bool InternalRefCountIsZero() const override
-	{
-		return this->RefCountIsZero();
-	}
+	DetachableRefCounted* m_outer = nullptr;
+	detail::RefCounter m_counter;
 };
