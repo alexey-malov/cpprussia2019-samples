@@ -3,7 +3,6 @@
 
 #include "pch.h"
 #include "RefCounted.h"
-//#include <atlcom.h>
 
 class Outer;
 
@@ -23,7 +22,7 @@ public:
 		: m_outer(outer)
 	{
 		m_innermost = std::make_unique<Innermost>();
-		m_innermost->SetParent(this);
+		m_innermost->SetOwner(this);
 	}
 
 	boost::intrusive_ptr<Innermost> GetInnermost() const
@@ -49,7 +48,7 @@ public:
 	Outer()
 	{
 		m_inner = std::make_unique<Inner>(this);
-		m_inner->SetParent(this);
+		m_inner->SetOwner(this);
 	}
 
 	boost::intrusive_ptr<Inner> GetInner() const
@@ -60,12 +59,12 @@ public:
 	void AddExtraInner(Inner* inner)
 	{
 		m_extraInner.reset(inner);
-		m_extraInner->SetParent(this);
+		m_extraInner->SetOwner(this);
 	}
 
 	void RemoveInner()
 	{
-		m_inner.release()->DetachFromParent();
+		m_inner.release()->DetachFromOwner();
 	}
 
 	~Outer()

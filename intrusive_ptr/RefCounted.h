@@ -94,38 +94,38 @@ public:
 	{
 		ReleaseRefs(1);
 	}
-	
-	void SetParent(DetachableRefCounted* outer)
+
+	void SetOwner(DetachableRefCounted* owner)
 	{
-		assert(!m_parent && outer);
-		m_parent = outer;
-		m_parent->AddRefs(m_counter.GetCount());
+		assert(!m_owner && owner);
+		m_owner = owner;
+		m_owner->AddRefs(m_counter.GetCount());
 	}
 
-	void DetachFromParent()
+	void DetachFromOwner()
 	{
-		if (m_parent)
+		if (m_owner)
 		{
-			m_parent->ReleaseRefs(m_counter.GetCount());
-			m_parent = nullptr;
+			m_owner->ReleaseRefs(m_counter.GetCount());
+			m_owner = nullptr;
 			ReleaseRefs(0);
 		}
 	}
 
 private:
-	void AddParentRef(int refCount) const
+	void AddRefsToOwner(int refCount) const
 	{
-		if (m_parent)
+		if (m_owner)
 		{
-			m_parent->AddRefs(refCount);
+			m_owner->AddRefs(refCount);
 		}
 	}
 
-	bool ReleaseParent(int refCount) const
+	bool ReleaseOwnerRefs(int refCount) const
 	{
-		if (m_parent)
+		if (m_owner)
 		{
-			m_parent->ReleaseRefs(refCount);
+			m_owner->ReleaseRefs(refCount);
 			return false;
 		}
 		return true;
@@ -134,24 +134,19 @@ private:
 	void AddRefs(int refCount) const
 	{
 		m_counter.IncrementBy(refCount);
-		AddParentRef(refCount);
+		AddRefsToOwner(refCount);
 	}
 
 	void ReleaseRefs(int refCount) const
 	{
-		if (m_counter.DecrementBy(refCount))
+		bool noSelfRefs = m_counter.DecrementBy(refCount);
+		bool isSelfOwned = ReleaseOwnerRefs(refCount);
+		if (noSelfRefs && isSelfOwned)
 		{
-			if (ReleaseParent(refCount))
-			{
-				delete this;
-			}
-		}
-		else
-		{
-			ReleaseParent(refCount);
+			delete this;
 		}
 	}
 
-	DetachableRefCounted* m_parent = nullptr;
+	DetachableRefCounted* m_owner = nullptr;
 	detail::RefCounter m_counter;
 };
