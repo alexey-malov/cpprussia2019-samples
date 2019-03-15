@@ -94,38 +94,38 @@ public:
 	{
 		ReleaseRefs(1);
 	}
-
+	
 	void SetParent(DetachableRefCounted* outer)
 	{
-		assert(!m_outer && outer);
-		m_outer = outer;
-		m_outer->AddRefs(m_counter.GetCount());
+		assert(!m_parent && outer);
+		m_parent = outer;
+		m_parent->AddRefs(m_counter.GetCount());
 	}
 
 	void DetachFromParent()
 	{
-		if (m_outer)
+		if (m_parent)
 		{
-			m_outer->ReleaseRefs(m_counter.GetCount());
-			m_outer = nullptr;
+			m_parent->ReleaseRefs(m_counter.GetCount());
+			m_parent = nullptr;
 			ReleaseRefs(0);
 		}
 	}
 
 private:
-	void OuterAddRef(int refCount) const
+	void AddParentRef(int refCount) const
 	{
-		if (m_outer)
+		if (m_parent)
 		{
-			m_outer->AddRefs(refCount);
+			m_parent->AddRefs(refCount);
 		}
 	}
 
-	bool OuterRelease(int refCount) const
+	bool ReleaseParent(int refCount) const
 	{
-		if (m_outer)
+		if (m_parent)
 		{
-			m_outer->ReleaseRefs(refCount);
+			m_parent->ReleaseRefs(refCount);
 			return false;
 		}
 		return true;
@@ -133,26 +133,25 @@ private:
 
 	void AddRefs(int refCount) const
 	{
-		OuterAddRef(refCount);
 		m_counter.IncrementBy(refCount);
+		AddParentRef(refCount);
 	}
 
 	void ReleaseRefs(int refCount) const
 	{
 		if (m_counter.DecrementBy(refCount))
 		{
-			if (OuterRelease(refCount))
+			if (ReleaseParent(refCount))
 			{
 				delete this;
 			}
 		}
 		else
 		{
-			OuterRelease(refCount);
+			ReleaseParent(refCount);
 		}
 	}
 
-private:
-	DetachableRefCounted* m_outer = nullptr;
+	DetachableRefCounted* m_parent = nullptr;
 	detail::RefCounter m_counter;
 };
