@@ -3,7 +3,7 @@
 namespace detail
 {
 
-class RefCounter
+class RefCounter final
 {
 public:
 	RefCounter(const RefCounter&) = delete;
@@ -11,12 +11,12 @@ public:
 
 	RefCounter() = default;
 
-	void IncrementBy(int delta) const
+	void IncrementBy(int delta) noexcept
 	{
 		m_refCount += delta;
 	}
 
-	[[nodiscard]] bool DecrementBy(int delta) const
+	[[nodiscard]] bool DecrementBy(int delta) noexcept
 	{
 		if ((m_refCount -= delta) == 0)
 		{
@@ -25,13 +25,13 @@ public:
 		return false;
 	}
 
-	int GetCount() const
+	int GetCount() const noexcept
 	{
 		return m_refCount;
 	}
 
 private:
-	mutable int m_refCount = 0;
+	int m_refCount = 0;
 };
 
 class RefCountedBase
@@ -79,7 +79,7 @@ public:
 	}
 
 private:
-	detail::RefCounter m_counter;
+	mutable detail::RefCounter m_counter;
 };
 
 class DetachableRefCounted : public detail::RefCountedBase
@@ -148,5 +148,5 @@ private:
 	}
 
 	DetachableRefCounted* m_owner = nullptr;
-	detail::RefCounter m_counter;
+	mutable detail::RefCounter m_counter;
 };
