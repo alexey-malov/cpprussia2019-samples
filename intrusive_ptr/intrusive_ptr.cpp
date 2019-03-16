@@ -22,7 +22,7 @@ public:
 		: m_outer(outer)
 	{
 		m_innermost = std::make_unique<Innermost>();
-		m_innermost->SetOwner(this);
+		m_innermost->SetOwner(*this);
 	}
 
 	boost::intrusive_ptr<Innermost> GetInnermost() const
@@ -48,7 +48,7 @@ public:
 	Outer()
 	{
 		m_inner = std::make_unique<Inner>(this);
-		m_inner->SetOwner(this);
+		m_inner->SetOwner(*this);
 	}
 
 	boost::intrusive_ptr<Inner> GetInner() const
@@ -59,7 +59,7 @@ public:
 	void AddExtraInner(Inner* inner)
 	{
 		m_extraInner.reset(inner);
-		m_extraInner->SetOwner(this);
+		m_extraInner->SetOwner(*this);
 	}
 
 	void RemoveInner()
@@ -82,6 +82,7 @@ boost::intrusive_ptr<Outer> Inner::GetOuter() const
 	return m_outer;
 }
 
+/*
 int main()
 {
 	boost::intrusive_ptr<Outer> outer(new Outer());
@@ -98,3 +99,4 @@ int main()
 	innermost.reset();
 
 }
+*/

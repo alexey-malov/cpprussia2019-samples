@@ -37,9 +37,9 @@ private:
 class RefCountedBase
 {
 public:
-	virtual void AddRef() const = 0;
+	virtual void AddRef() const noexcept = 0;
 
-	virtual void Release() const = 0;
+	virtual void Release() const noexcept = 0;
 
 	RefCountedBase(const RefCountedBase&) = delete;
 	RefCountedBase& operator=(const RefCountedBase&) = delete;
@@ -50,12 +50,12 @@ protected:
 	virtual ~RefCountedBase() = default;
 };
 
-void intrusive_ptr_add_ref(const RefCountedBase* p)
+inline void intrusive_ptr_add_ref(const RefCountedBase* p) noexcept
 {
 	p->AddRef();
 }
 
-void intrusive_ptr_release(const RefCountedBase* p)
+inline void intrusive_ptr_release(const RefCountedBase* p) noexcept
 {
 	p->Release();
 }
@@ -65,12 +65,12 @@ void intrusive_ptr_release(const RefCountedBase* p)
 class RefCounted : public detail::RefCountedBase
 {
 public:
-	void AddRef() const final
+	void AddRef() const noexcept final
 	{
 		m_counter.IncrementBy(1);
 	}
 
-	void Release() const final
+	void Release() const noexcept final
 	{
 		if (m_counter.DecrementBy(1))
 		{
@@ -85,35 +85,41 @@ private:
 class DetachableRefCounted : public detail::RefCountedBase
 {
 public:
-	void AddRef() const final
+	void AddRef() const noexcept final
 	{
 		AddRefs(1);
 	}
 
-	void Release() const final
+	void Release() const noexcept final
 	{
 		ReleaseRefs(1);
 	}
 
-	void SetOwner(DetachableRefCounted* owner)
+	void SetOwner(DetachableRefCounted& owner)
 	{
-		assert(!m_owner && owner);
-		m_owner = owner;
+		if (m_owner)
+		{
+			throw std::logic_error("already owned");
+		}
+		m_owner = &owner;
 		m_owner->AddRefs(m_counter.GetCount());
 	}
 
-	void DetachFromOwner()
+	void DetachFromOwner() noexcept
 	{
 		if (m_owner)
 		{
 			m_owner->ReleaseRefs(m_counter.GetCount());
 			m_owner = nullptr;
-			ReleaseRefs(0);
+			if (m_counter.GetCount() == 0)
+			{
+				delete this;
+			}
 		}
 	}
 
 private:
-	void AddRefsToOwner(int refCount) const
+	void AddRefsToOwner(int refCount) const noexcept
 	{
 		if (m_owner)
 		{
@@ -121,7 +127,7 @@ private:
 		}
 	}
 
-	bool ReleaseOwnerRefs(int refCount) const
+	bool ReleaseOwnerRefs(int refCount) const noexcept
 	{
 		if (m_owner)
 		{
@@ -131,13 +137,13 @@ private:
 		return true;
 	}
 
-	void AddRefs(int refCount) const
+	void AddRefs(int refCount) const noexcept
 	{
 		m_counter.IncrementBy(refCount);
 		AddRefsToOwner(refCount);
 	}
 
-	void ReleaseRefs(int refCount) const
+	void ReleaseRefs(int refCount) const noexcept
 	{
 		bool noSelfRefs = m_counter.DecrementBy(refCount);
 		bool isSelfOwned = ReleaseOwnerRefs(refCount);
