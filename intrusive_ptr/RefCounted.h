@@ -1,5 +1,9 @@
 #pragma once
 
+//#include <atlcom.h>
+
+class DetachableRefCounted;
+
 namespace detail
 {
 
@@ -60,17 +64,28 @@ inline void intrusive_ptr_release(const RefCountedBase* p) noexcept
 	p->Release();
 }
 
+template <typename T>
+class NoAddRefRelease : public T
+{
+	void AddRef() const noexcept override = 0;
+	void Release() const noexcept override = 0;
+
+public:
+	void SetOwner(DetachableRefCounted& owner) = delete;
+	void DetachFromOwner() noexcept = delete;
+};
+
 } // namespace detail
 
 class RefCounted : public detail::RefCountedBase
 {
 public:
-	void AddRef() const noexcept final
+	void AddRef() const noexcept override
 	{
 		m_counter.IncrementBy(1);
 	}
 
-	void Release() const noexcept final
+	void Release() const noexcept override
 	{
 		if (m_counter.DecrementBy(1))
 		{
@@ -85,12 +100,12 @@ private:
 class DetachableRefCounted : public detail::RefCountedBase
 {
 public:
-	void AddRef() const noexcept final
+	void AddRef() const noexcept override
 	{
 		AddRefs(1);
 	}
 
-	void Release() const noexcept final
+	void Release() const noexcept override
 	{
 		ReleaseRefs(1);
 	}
@@ -155,4 +170,104 @@ private:
 
 	DetachableRefCounted* m_owner = nullptr;
 	mutable detail::RefCounter m_counter;
+};
+
+template <typename T>
+class RefCountPtr final
+{
+public:
+	RefCountPtr(T* p = nullptr) noexcept
+		: m_ptr(p)
+	{
+		if (m_ptr)
+		{
+			m_ptr->AddRef();
+		}
+	}
+
+	RefCountPtr(const RefCountPtr& other) noexcept
+		: m_ptr(other.m_ptr)
+	{
+		if (m_ptr)
+		{
+			m_ptr->AddRef();
+		}
+	}
+
+	RefCountPtr(RefCountPtr&& other) noexcept
+		: m_ptr(other.m_ptr)
+	{
+		other.m_ptr = nullptr;
+	}
+
+	RefCountPtr& operator=(const RefCountPtr& other) noexcept
+	{
+		if (m_ptr != other.m_ptr)
+		{
+			RefCountPtr(other).swap(*this);
+		}
+		return *this;
+	}
+
+	RefCountPtr& operator=(RefCountPtr&& other) noexcept
+	{
+		if (this != std::addressof(other))
+		{
+			RefCountPtr(std::move(other)).swap(*this);
+		}
+		return *this;
+	}
+
+	~RefCountPtr() noexcept
+	{
+		if (m_ptr)
+			m_ptr->Release();
+	}
+
+	void swap(RefCountPtr& other) noexcept
+	{
+		std::swap(m_ptr, other.m_ptr);
+	}
+
+	detail::NoAddRefRelease<T>& operator*() const noexcept
+	{
+		return static_cast<detail::NoAddRefRelease<T>&>(*m_ptr);
+	}
+
+	detail::NoAddRefRelease<T>* operator->() const noexcept
+	{
+		return static_cast<detail::NoAddRefRelease<T>*>(m_ptr);
+	}
+
+	bool operator!() const noexcept
+	{
+		return m_ptr == nullptr;
+	}
+
+	bool operator==(const RefCountPtr& other) const noexcept
+	{
+		return m_ptr == other.m_ptr;
+	}
+
+	bool operator!=(const RefCountPtr& other) const noexcept
+	{
+		return m_ptr != other.m_ptr;
+	}
+
+	explicit operator bool() const noexcept
+	{
+		return m_ptr != nullptr;
+	}
+
+	void Release() noexcept
+	{
+		if (m_ptr)
+		{
+			m_ptr->Release();
+			m_ptr = nullptr;
+		}
+	}
+
+private:
+	T* m_ptr;
 };

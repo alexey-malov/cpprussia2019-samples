@@ -131,3 +131,113 @@ TEST_CASE("Object attachment")
 		}
 	}
 }
+
+struct Foo : RefCounted
+{
+	void DoSomething()
+	{
+	}
+};
+
+RefCountPtr<Obj> MakeRC(int& deathCounter)
+{
+	return { new Obj(Increment(deathCounter)) };
+}
+
+TEST_CASE("RefCountPtr is released on destruction")
+{
+	int cnt = 0;
+	{
+		auto p1 = MakeRC(cnt);
+		CHECK(cnt == 0);
+	}
+	CHECK(cnt == 1);
+}
+
+SCENARIO("RefCountPtr assignment")
+{
+	int cnt1 = 0;
+	int cnt2 = 0;
+
+	GIVEN("two distinct pointers")
+	{
+		auto p1 = MakeRC(cnt1);
+		auto p2 = MakeRC(cnt2);
+		WHEN("one pointer is assigned to another")
+		{
+			p1 = p2;
+			THEN("old ptr is released")
+			{
+				CHECK(cnt1 == 1);
+				CHECK(cnt2 == 0);
+			}
+			AND_THEN("pointers become equal")
+			{
+				CHECK(p1 == p2);
+			}
+		}
+	}
+}
+
+SCENARIO("RefCountPtr move assignment")
+{
+	GIVEN("two distinct pointers")
+	{
+		int cnt1 = 0;
+		int cnt2 = 0;
+
+		auto p1 = MakeRC(cnt1);
+		auto p2 = MakeRC(cnt2);
+		WHEN("one pointer is moved to another")
+		{
+			p1 = std::move(p2);
+			THEN("old ptr is released")
+			{
+				CHECK(cnt1 == 1);
+				CHECK(cnt2 == 0);
+			}
+			AND_THEN("right pointer becomes empty")
+			{
+				CHECK(!p2);
+			}
+			AND_THEN("left pointer is not empty")
+			{
+				CHECK(p1);
+			}
+		}
+	}
+
+	GIVEN("two equal pointers")
+	{
+		int cnt = 0;
+		{
+			auto p1 = MakeRC(cnt);
+			auto p2 = p1;
+			WHEN("one pointer is moved to another")
+			{
+				p1 = std::move(p2);
+				THEN("rhs pointer becomes empty")
+				{
+					CHECK(!p2);
+				}
+			}
+			CHECK(cnt == 0);
+		}
+		CHECK(cnt == 1);
+	}
+
+	GIVEN("a pointer")
+	{
+		int cnt = 0;
+		auto p = MakeRC(cnt);
+		WHEN("object is moved to itself")
+		{
+			p = std::move(p);
+			THEN("it is not affected")
+			{
+				CHECK(p);
+				CHECK(cnt == 0);
+			}
+		}
+	}
+}
