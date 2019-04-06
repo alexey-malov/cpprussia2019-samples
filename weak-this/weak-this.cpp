@@ -107,8 +107,49 @@ private:
 	string m_name;
 };
 
+class Foo : public enable_shared_from_this<Foo>
+{
+public:
+	using Callback = function<void()>;
+	~Foo()
+	{
+		cout << "~Foo\n";
+	}
+
+	Callback GetNewCallback()
+	{
+		return [weakSelf = weak_from_this()] {
+			cout << "entering callback\n";
+			if (auto self = weakSelf.lock())
+			{
+				cout << "  updating data\n";
+				++self->m_data;
+			}
+			else
+			{
+				cout << "  Foo was destroyed\n";
+			}
+		};
+	}
+
+private:
+	int m_data = 0;
+};
+
+void TestWeakSelf()
+{
+	auto foo = make_shared<Foo>();
+	auto cb = foo->GetNewCallback();
+	cb();
+	foo.reset();
+	cb();
+}
+
 int main()
 {
+	TestWeakSelf();
+	return 0;
+	/*
 	auto generator = make_shared<Generator>();
 	{
 		auto indicator = make_shared<Indicator>(generator, "#1"s);
@@ -117,4 +158,5 @@ int main()
 	}
 	cout << "Finish\n";
 	cin.get();
+	*/
 }

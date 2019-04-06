@@ -19,8 +19,7 @@ public:
 		m_cond.notify_one();
 	}
 
-	[[nodiscard]] bool TryPop(T& value)
-	{
+	[[nodiscard]] bool TryPop(T& value) {
 		lock_guard lk{ m_sync };
 		if (m_queue.empty())
 		{
@@ -31,7 +30,7 @@ public:
 		return true;
 	}
 
-	[[nodiscard]] bool IsEmpty() const
+		[[nodiscard]] bool IsEmpty() const
 	{
 		lock_guard lk(m_sync);
 		return m_queue.empty();
@@ -174,8 +173,81 @@ private:
 	shared_ptr<AsyncIO> m_io;
 };
 
+namespace bad
+{
+class Foo
+{
+public:
+	using Callback = function<void()>;
+	~Foo()
+	{
+		cout << "~Foo\n";
+	}
+
+	Callback GetCallback()
+	{
+		return [this] {
+			++m_data;
+			cout << "Data:" << m_data << "\n";
+		};
+	}
+
+private:
+	int m_data;
+};
+
+void TestThisCapturing()
+{
+	auto foo = make_shared<Foo>();
+	auto cb = foo->GetCallback();
+	cb();
+	foo.reset();
+	cb();
+}
+} // namespace bad
+
+class Foo : public enable_shared_from_this<Foo>
+{
+public:
+	using Callback = function<void()>;
+	~Foo()
+	{
+		cout << "~Foo\n";
+	}
+
+	Callback GetCallback()
+	{
+		return [self = shared_from_this()] {
+			++self->m_data;
+			cout << "Data:" << self->m_data << "\n";
+		};
+	}
+
+private:
+	int m_data = 0;
+};
+
+void TestStrongSelf()
+{
+	auto foo = make_shared<Foo>();
+	weak_ptr weakFoo{ foo };
+	auto cb = foo->GetCallback();
+	cb();
+
+	foo.reset();
+	cb();
+
+	assert(!weakFoo.expired());
+	cout << "reset callback\n";
+	cb = {};
+	assert(weakFoo.expired());
+}
+
 int main()
 {
+	TestStrongSelf();
+	bad::TestThisCapturing();
+	/*
 	auto scheduler = make_shared<Scheduler>();
 	{
 		auto asyncIO = make_shared<AsyncIO>(scheduler);
@@ -184,4 +256,5 @@ int main()
 		cin.get();
 	}
 	cout << "Exiting\n";
+	*/
 }
