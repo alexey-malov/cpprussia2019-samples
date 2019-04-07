@@ -58,29 +58,12 @@ private:
 using DataPtr = shared_ptr<Data>;
 using DataWeakPtr = weak_ptr<Data>;
 
-/*
-class DataProvider
-{
-public:
-	DataProvider() = default;
-	DataProvider(DataPtr data)
-		: m_data(move(data))
-	{
-	}
-	DataPtr GetData() const
-	{
-		return m_data;
-	}
-	shared_ptr<Data> m_data;
-};
-*/
-
 class WeakCache : public enable_shared_from_this<WeakCache>
 {
 public:
 	DataPtr GetData(const DataSourcePtr& dataSrc) const
 	{
-		DataSourceWeakPtr key = dataSrc;
+		Key key{ dataSrc };
 		DataPtr data;
 		if (auto it = m_items.find(key); it != m_items.end())
 		{
@@ -90,22 +73,47 @@ public:
 
 		if (!data)
 		{
-			data.reset(new Data(std::move(dataSrc)), [weakSelf = weak_from_this(), key](Data* data) {
-				if (auto self = weakSelf.lock())
-				{
-					self->m_items.erase(key);
-				}
-				delete data;
-			});
-			m_items.insert_or_assign(key, data);
+			data.reset(new Data(std::move(dataSrc)),
+				[weakSelf = weak_from_this(), key](Data* data) {
+					if (auto self = weakSelf.lock())
+					{
+						self->m_items.erase(key);
+					}
+					delete data;
+				});
+			m_items.emplace(key, data);
 		}
 
 		return data;
 	}
 
 private:
-	//mutable std::map<DataSourceWeakPtr, DataWeakPtr, owner_less<void>> m_items;
-	mutable std::unordered_map<const DataSource*, DataWeakPtr> m_items;
+	struct Key
+	{
+		Key(const DataSourcePtr& p)
+			: hash(std::hash<DataSourcePtr>()(p))
+			, rawPtr(p.get())
+			, wptr(p)
+		{
+		}
+		bool operator==(const Key& rhs) const noexcept
+		{
+			return rawPtr == rhs.rawPtr;
+		}
+		size_t hash;
+		DataSource* rawPtr;
+		DataSourceWeakPtr wptr;
+	};
+
+	struct KeyHasher
+	{
+		size_t operator()(const Key& key) const noexcept
+		{
+			return key.hash;
+		}
+	};
+
+	mutable std::unordered_map<Key, DataWeakPtr, KeyHasher> m_items;
 };
 
 SCENARIO("Weak cache access")
@@ -141,6 +149,14 @@ SCENARIO("Weak cache access")
 			THEN("different data are returned")
 			{
 				CHECK(d1 != d2);
+			}
+		}
+		WHEN("data is added to cache")
+		{
+			auto d1 = cache->GetData(ds1);
+			THEN("it is not removed from key")
+			{
+				d1.reset();
 			}
 		}
 	}
