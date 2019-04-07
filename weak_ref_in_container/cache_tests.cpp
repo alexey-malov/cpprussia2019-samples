@@ -5,11 +5,12 @@ using namespace std;
 struct Obj
 {
 };
+using ObjWeakPtr = weak_ptr<Obj>;
+using ObjPtr = shared_ptr<Obj>;
 
 class Cache : public enable_shared_from_this<Cache>
 {
 public:
-	using ObjPtr = shared_ptr<Obj>;
 	ObjPtr GetObjectById(const string& key) const
 	{
 		ObjPtr obj;
@@ -35,9 +36,115 @@ public:
 	}
 
 private:
-	using ObjWeakPtr = weak_ptr<Obj>;
 	mutable unordered_map<string, ObjWeakPtr> m_items;
 };
+
+struct DataSource
+{
+};
+using DataSourcePtr = shared_ptr<DataSource>;
+using DataSourceWeakPtr = weak_ptr<DataSource>;
+
+struct Data
+{
+	Data(DataSourcePtr dataSrc)
+		: m_dataSrc(move(dataSrc))
+	{
+	}
+
+private:
+	DataSourcePtr m_dataSrc;
+};
+using DataPtr = shared_ptr<Data>;
+using DataWeakPtr = weak_ptr<Data>;
+
+/*
+class DataProvider
+{
+public:
+	DataProvider() = default;
+	DataProvider(DataPtr data)
+		: m_data(move(data))
+	{
+	}
+	DataPtr GetData() const
+	{
+		return m_data;
+	}
+	shared_ptr<Data> m_data;
+};
+*/
+
+class WeakCache : public enable_shared_from_this<WeakCache>
+{
+public:
+	DataPtr GetData(const DataSourcePtr& dataSrc) const
+	{
+		DataSourceWeakPtr key = dataSrc;
+		DataPtr data;
+		if (auto it = m_items.find(key); it != m_items.end())
+		{
+			data = it->second.lock();
+			assert(data);
+		}
+
+		if (!data)
+		{
+			data.reset(new Data(std::move(dataSrc)), [weakSelf = weak_from_this(), key](Data* data) {
+				if (auto self = weakSelf.lock())
+				{
+					self->m_items.erase(key);
+				}
+				delete data;
+			});
+			m_items.insert_or_assign(key, data);
+		}
+
+		return data;
+	}
+
+private:
+	//mutable std::map<DataSourceWeakPtr, DataWeakPtr, owner_less<void>> m_items;
+	mutable std::unordered_map<const DataSource*, DataWeakPtr> m_items;
+};
+
+SCENARIO("Weak cache access")
+{
+	GIVEN("A weak cache and some data sources")
+	{
+		auto cache = make_shared<WeakCache>();
+		auto ds1 = make_shared<DataSource>();
+		auto ds2 = make_shared<DataSource>();
+
+		WHEN("data is retrieved from cache using the same data source")
+		{
+			auto d1 = cache->GetData(ds1);
+			auto d1_1 = cache->GetData(ds1);
+			THEN("the same data is returned")
+			{
+				CHECK(d1 == d1_1);
+				AND_THEN("data source is not expired until its data is in use")
+				{
+					weak_ptr wds1{ ds1 };
+					ds1.reset();
+					d1.reset();
+					CHECK_FALSE(wds1.expired());
+					d1_1.reset();
+					CHECK(wds1.expired());
+				}
+			}
+		}
+		WHEN("data is retrieved from cache using different data sources")
+		{
+			auto d1 = cache->GetData(ds1);
+			auto d2 = cache->GetData(ds2);
+			THEN("different data are returned")
+			{
+				CHECK(d1 != d2);
+			}
+		}
+	}
+}
 
 TEST_CASE("Cache access")
 {
