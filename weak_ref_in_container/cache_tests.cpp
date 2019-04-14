@@ -147,16 +147,200 @@ public:
 	}
 };
 
-template <typename Key, typename Val, typename Hasher = hash<Key>, typename KeyEq = equal_to<Key>>
-class WeakMap
+namespace detail
+{
+
+} // namespace detail
+
+class DestructionObservable
 {
 public:
-	using ValuePtr = shared_ptr<Val>;
+	template <typename Handler>
+	void AddDestructionHandler(Handler&& handler) const
+	{
+		m_destructionObservers.emplace_back(forward<Handler>(handler));
+	}
+
+protected:
+	~DestructionObservable() noexcept
+	{
+		for (auto&& handler : m_destructionObservers)
+		{
+			try
+			{
+				handler();
+			}
+			catch (...)
+			{
+			}
+		}
+	}
+
+private:
+	mutable vector<function<void()>> m_destructionObservers;
+};
+
+/*
+template <typename T>
+class SharedPtr
+{
+public:
+	constexpr SharedPtr() noexcept = default;
+
+	constexpr SharedPtr(nullptr_t) noexcept
+	{
+	}
+
+	SharedPtr(SharedPtr&&) = default;
+
+	template <typename U>
+	explicit SharedPtr(U* u)
+		: m_wrapper(u)
+	{
+	}
+
+	template <class U>
+	SharedPtr& operator=(const SharedPtr<U>& rhs) noexcept
+	{
+		SharedPtr(rhs).swap(*this);
+		return *this;
+	}
+
+	SharedPtr& operator=(const SharedPtr&) noexcept = default;
+
+	template <class U>
+	SharedPtr& operator=(SharedPtr<U>&& rhs) noexcept
+	{
+		SharedPtr(move(rhs)).swap(*this);
+		return *this;
+	}
+
+	SharedPtr& operator=(SharedPtr&&) noexcept = default;
+
+	template <class _Ux,
+		class _Dx>
+	SharedPtr& operator=(unique_ptr<_Ux, _Dx>&& _Right)
+	{ // move from unique_ptr
+			SharedPtr(_STD move(_Right)).swap(*this);
+		return (*this);
+	}
+
+
+	void swap(SharedPtr& other)
+	{
+		m_wrapper.swap(other.m_wrapper);
+	}
+
+
+private:
+	template <typename T, typename... Args>
+	friend SharedPtr<T> MakeShared(Args&&... args);
+
+	void SetWrapper(std::shared_ptr<detail::Wrapper<T>> w)
+	{
+		m_wrapper = move(w);
+	}
+	std::shared_ptr<detail::Wrapper<T>> m_wrapper;
+};
+
+template <typename T, typename... Args>
+SharedPtr<T> MakeShared(Args&&... args)
+{
+	auto wrapper = make_shared<detail::Wrapper<T>>(forward<Args>(args)...);
+	SharedPtr<T> p;
+	p.SetWrapper(move(wrapper));
+	return p;
+}
+*/
+template <typename Key, typename Val>
+class WeakMap : public enable_shared_from_this<WeakMap<Key, Val>>
+{
+public:
+	using MyType = WeakMap<Key, Val>;
+	using KeyPtr = shared_ptr<const Key>;
+	using KeyDeleter = std::function<void()>;
+	using Subscriber = std::function<void(const Key& v, KeyDeleter d)>;
+	using CacheCleaner = function<void()>;
+
+	explicit WeakMap(Subscriber subscriber)
+		: m_subscriber(move(subscriber))
+	{
+	}
+
+	optional<Val> TryGetValue(const KeyPtr& key) const
+	{
+		if (auto it = m_items.find(key.get()); it != m_items.end())
+		{
+			return it->second;
+		}
+		return nullopt;
+	}
+
+	template <typename V>
+	void SetValue(const KeyPtr& key, V&& value)
+	{
+		WeakKey wkey{ key.get() };
+		if (auto it = m_items.find(wkey); it != m_items.end())
+		{
+			it->second = value;
+		}
+		else
+		{
+			auto cleaner = [weakSelf = MyType::weak_from_this(), wkey]() mutable {
+				if (auto self = weakSelf.lock())
+					self->m_items.erase(wkey);
+				weakSelf.reset();
+			};
+			m_subscriber(*key, move(cleaner));
+			m_items.emplace(wkey, forward<V>(value));
+		}
+	}
+
+private:
+	Subscriber m_subscriber;
+	struct WeakKey
+	{
+		WeakKey(const Key* key)
+			: key(key)
+			, hash(std::hash<const Key*>()(key))
+		{
+		}
+		bool operator==(const WeakKey& rhs) const
+		{
+			return key == rhs.key;
+		}
+		const Key* key;
+		size_t hash;
+	};
+
+	struct Hasher
+	{
+		size_t operator()(const WeakKey& key) const
+		{
+			return key.hash;
+		}
+	};
+	mutable unordered_map<WeakKey, Val, Hasher> m_items;
+};
+
+struct FooObservable : DestructionObservable
+{
 };
 
 SCENARIO("Weak key in a map")
 {
-	
+	GIVEN("a WeakMap")
+	{
+		auto wm = make_shared<WeakMap<FooObservable, int>>([](const auto& k, auto&& d) {
+			k.AddDestructionHandler(std::move(d));
+		});
+
+		auto k = make_shared<FooObservable>();
+		CHECK(!wm->TryGetValue(k));
+
+		wm->SetValue(k, 42);
+		CHECK(wm->TryGetValue(k).value_or(0) == 42);
+	}
 }
 
 SCENARIO("Template cache test")
