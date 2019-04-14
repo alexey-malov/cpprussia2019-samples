@@ -43,11 +43,10 @@ struct DataSource
 {
 };
 using DataSourcePtr = shared_ptr<DataSource>;
-using DataSourceWeakPtr = weak_ptr<DataSource>;
 
 struct Data
 {
-	Data(DataSourcePtr dataSrc)
+	explicit Data(DataSourcePtr dataSrc)
 		: m_dataSrc(move(dataSrc))
 	{
 	}
@@ -56,7 +55,6 @@ private:
 	DataSourcePtr m_dataSrc;
 };
 using DataPtr = shared_ptr<Data>;
-using DataWeakPtr = weak_ptr<Data>;
 
 /*
 class WeakCache : public enable_shared_from_this<WeakCache>
@@ -99,7 +97,7 @@ public:
 	using MyType = CacheT<Key, Val, Hasher, KeyEq>;
 	using ValuePtr = shared_ptr<Val>;
 	using ValueWeakPtr = weak_ptr<Val>;
-	using CacheCleaner = function<void(const Key& key)>;
+	using CacheCleaner = function<void()>;
 	using ValueFactory = function<ValuePtr(const Key& key, CacheCleaner d)>;
 
 	CacheT(ValueFactory valueFactory)
@@ -117,12 +115,10 @@ public:
 
 		if (!value)
 		{
-			value = m_valueFactory(key,
-				[weakSelf = MyType::weak_from_this()](const auto& key) mutable {
-					if (auto self = weakSelf.lock())
-						self->m_items.erase(key);
-					weakSelf.reset();
-				});
+			value = m_valueFactory(key, [weakSelf = MyType::weak_from_this(), key] {
+				if (auto self = weakSelf.lock())
+					self->m_items.erase(key);
+			});
 			m_items.emplace(key, value);
 		}
 		return value;
@@ -133,17 +129,21 @@ private:
 	ValueFactory m_valueFactory;
 };
 
-class WeakCache : public CacheT<DataSourcePtr, Data>
+class DataCache : public CacheT<DataSourcePtr, Data>
 {
 public:
-	WeakCache()
-		: CacheT([](const DataSourcePtr& key, auto&& cleaner) {
-			return shared_ptr<Data>(new Data(key), [cleaner = move(cleaner), key](Data* d) {
-				cleaner(key);
-				delete d;
-			});
-		})
+	DataCache()
+		: CacheT(DataCache::DataFactory)
 	{
+	}
+
+private:
+	static DataPtr DataFactory(const DataSourcePtr& key, CacheCleaner cleaner)
+	{
+		return DataPtr(new Data(key), [cleaner = move(cleaner)](Data* d) {
+			cleaner();
+			delete d;
+		});
 	}
 };
 
@@ -269,6 +269,11 @@ public:
 		return nullopt;
 	}
 
+	void RemoveValue(const KeyPtr& key)
+	{
+		m_items.erase(WeakKey(key.get()));
+	}
+
 	template <typename V>
 	void SetValue(const KeyPtr& key, V&& value)
 	{
@@ -333,10 +338,23 @@ SCENARIO("Weak key in a map")
 		auto wm = make_shared<WeakMap<FooObservable, int>>();
 
 		auto k = make_shared<FooObservable>();
-		CHECK(!wm->TryGetValue(k));
+		WHEN("trying to get a value for a missing key")
+		{
+			auto v = wm->TryGetValue(k);
+			THEN("empty value is returned")
+			{
+				CHECK(!v);
+			}
+		}
 
-		wm->SetValue(k, 42);
-		CHECK(wm->TryGetValue(k).value_or(0) == 42);
+		WHEN("value is set for the key")
+		{
+			wm->SetValue(k, 42);
+			THEN("value")
+			{
+				CHECK(wm->TryGetValue(k).value_or(0) == 42);
+			}
+		}
 	}
 }
 
@@ -344,8 +362,8 @@ SCENARIO("Template cache test")
 {
 	CacheT<string, string> cache([](const string& key, auto&& cleaner) {
 		return shared_ptr<string>(new string("value for:" + key),
-			[cleaner = std::move(cleaner), key](string* s) {
-				cleaner(key);
+			[cleaner = std::move(cleaner)](string* s) {
+				cleaner();
 				delete s;
 			});
 	});
@@ -356,7 +374,7 @@ SCENARIO("Weak cache access")
 {
 	GIVEN("A weak cache and some data sources")
 	{
-		auto cache = make_shared<WeakCache>();
+		auto cache = make_shared<DataCache>();
 		auto ds1 = make_shared<DataSource>();
 		auto ds2 = make_shared<DataSource>();
 
