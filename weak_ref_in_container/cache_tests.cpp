@@ -252,20 +252,13 @@ SharedPtr<T> MakeShared(Args&&... args)
 	return p;
 }
 */
+
 template <typename Key, typename Val>
 class WeakMap : public enable_shared_from_this<WeakMap<Key, Val>>
 {
 public:
 	using MyType = WeakMap<Key, Val>;
 	using KeyPtr = shared_ptr<const Key>;
-	using KeyDeleter = std::function<void()>;
-	using Subscriber = std::function<void(const Key& v, KeyDeleter d)>;
-	using CacheCleaner = function<void()>;
-
-	explicit WeakMap(Subscriber subscriber)
-		: m_subscriber(move(subscriber))
-	{
-	}
 
 	optional<Val> TryGetValue(const KeyPtr& key) const
 	{
@@ -286,18 +279,18 @@ public:
 		}
 		else
 		{
-			auto cleaner = [weakSelf = MyType::weak_from_this(), wkey]() mutable {
-				if (auto self = weakSelf.lock())
-					self->m_items.erase(wkey);
-				weakSelf.reset();
-			};
-			m_subscriber(*key, move(cleaner));
+			WeakMapAddDestructionHandler(*key,
+				[weakSelf = MyType::weak_from_this(), wkey]() mutable {
+					if (auto self = weakSelf.lock())
+						self->m_items.erase(wkey);
+					weakSelf.reset();
+				});
+
 			m_items.emplace(wkey, forward<V>(value));
 		}
 	}
 
 private:
-	Subscriber m_subscriber;
 	struct WeakKey
 	{
 		WeakKey(const Key* key)
@@ -327,13 +320,17 @@ struct FooObservable : DestructionObservable
 {
 };
 
+template <typename Handler>
+void WeakMapAddDestructionHandler(const DestructionObservable& d, Handler&& h)
+{
+	d.AddDestructionHandler(forward<Handler>(h));
+}
+
 SCENARIO("Weak key in a map")
 {
 	GIVEN("a WeakMap")
 	{
-		auto wm = make_shared<WeakMap<FooObservable, int>>([](const auto& k, auto&& d) {
-			k.AddDestructionHandler(std::move(d));
-		});
+		auto wm = make_shared<WeakMap<FooObservable, int>>();
 
 		auto k = make_shared<FooObservable>();
 		CHECK(!wm->TryGetValue(k));
