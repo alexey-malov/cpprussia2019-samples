@@ -57,6 +57,26 @@ private:
 	shared_ptr<Inner> m_inner;
 };
 
+struct Foo : enable_shared_from_this<Foo>
+{
+	static shared_ptr<Foo> Create(int arg)
+	{
+		shared_ptr<Foo> foo{ new Foo(arg) };
+		foo->Init();
+		return foo;
+	}
+
+private:
+	void Init()
+	{
+		auto self = shared_from_this();
+	}
+	explicit Foo(int arg)
+	{
+
+	}
+};
+
 int main()
 {
 	auto foo = Outer::Create(42);

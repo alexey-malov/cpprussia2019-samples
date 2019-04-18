@@ -11,9 +11,9 @@ struct IOwner
 	virtual void Invalidate() = 0;
 };
 
-struct Subordinate
+struct Child
 {
-	Subordinate(int value, weak_ptr<IOwner> owner)
+	Child(int value, weak_ptr<IOwner> owner)
 		: m_owner(move(owner))
 		, m_value(value)
 	{
@@ -44,9 +44,9 @@ private:
 struct Owner : IOwner
 	, enable_shared_from_this<Owner>
 {
-	shared_ptr<Subordinate> AddSubordinate(int val)
+	shared_ptr<Child> AddChild(int val)
 	{
-		m_subordinates.push_back(make_shared<Subordinate>(val, weak_from_this()));
+		m_subordinates.emplace_back(make_shared<Child>(val, weak_from_this()));
 		return m_subordinates.back();
 	}
 
@@ -70,14 +70,14 @@ private:
 		m_value.reset();
 	}
 	mutable optional<int> m_value;
-	vector<shared_ptr<Subordinate>> m_subordinates;
+	vector<shared_ptr<Child>> m_subordinates;
 };
 
 int main()
 {
 	auto owner = make_shared<Owner>();
-	auto s1 = owner->AddSubordinate(3);
-	auto s2 = owner->AddSubordinate(2);
+	auto s1 = owner->AddChild(3);
+	auto s2 = owner->AddChild(2);
 
 	cout << "Old value: " << owner->GetValue() << "\n";
 
