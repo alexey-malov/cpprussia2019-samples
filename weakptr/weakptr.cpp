@@ -47,6 +47,7 @@ struct Owner : IOwner
 	shared_ptr<Child> AddChild(int val)
 	{
 		m_subordinates.emplace_back(make_shared<Child>(val, weak_from_this()));
+		m_value.reset();
 		return m_subordinates.back();
 	}
 
@@ -75,6 +76,9 @@ private:
 
 int main()
 {
+	auto pint = make_shared<int>(42);
+	auto pint1 = pint;
+	weak_ptr wp = pint;
 	auto owner = make_shared<Owner>();
 	auto s1 = owner->AddChild(3);
 	auto s2 = owner->AddChild(2);
