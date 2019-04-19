@@ -370,6 +370,14 @@ SCENARIO("Template cache test")
 	CHECK(*cache.GetValue("one") == "value for:one");
 }
 
+SCENARIO("Data cache example")
+{
+	auto cache = make_shared<DataCache>();
+	auto src = make_shared<DataSource>();
+
+	auto data = cache->GetValue(src);
+}
+
 SCENARIO("Weak cache access")
 {
 	GIVEN("A weak cache and some data sources")
