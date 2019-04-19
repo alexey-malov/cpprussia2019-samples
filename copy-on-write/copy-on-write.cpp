@@ -80,6 +80,11 @@ int main()
 {
 	using namespace std;
 	{
+		Cow<Circle> circle(100.0);
+		Cow<Shape> shape1{ circle };
+		Cow<Shape> shape2{ shape1 };
+	}
+	{
 		Cow<Subject> subj1;
 		std::cout << subj1->GetValue();
 	}
