@@ -2,6 +2,7 @@
 //
 
 #include "pch.h"
+#include "UniversalPtr.h"
 
 using namespace std;
 
