@@ -50,8 +50,7 @@ public:
 
 protected:
 	RefCountedBase() = default;
-
-	virtual ~RefCountedBase() = default;
+	virtual ~RefCountedBase() {}
 };
 
 inline void intrusive_ptr_add_ref(const RefCountedBase* p) noexcept
@@ -239,6 +238,11 @@ public:
 		return static_cast<detail::NoAddRefRelease<T>*>(m_ptr);
 	}
 
+	T* Get() const noexcept // для любителей экстрима
+	{
+		return m_ptr;
+	}
+
 	bool operator!() const noexcept
 	{
 		return m_ptr == nullptr;
@@ -259,7 +263,7 @@ public:
 		return m_ptr != nullptr;
 	}
 
-	void Release() noexcept
+	void Reset() noexcept
 	{
 		if (m_ptr)
 		{

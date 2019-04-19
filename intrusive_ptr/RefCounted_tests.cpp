@@ -29,7 +29,6 @@ struct Obj : DetachableRefCounted
 
 	~Obj()
 	{
-		children.clear();
 		if (destructor)
 			destructor();
 	}
@@ -49,7 +48,55 @@ intrusive_ptr<Obj> MakeObj(int& destructionCounter)
 	return { new Obj(Increment(destructionCounter)) };
 }
 
+
+
 } // namespace
+
+struct Bar : DetachableRefCounted
+{
+	void RemoveChild(size_t index)
+	{
+		auto it = m_children.begin() + index;
+		it->release()->DetachFromOwner();
+		m_children.erase(it);
+	}
+
+	RefCountPtr<Bar> GetChild(size_t index) const
+	{
+		return m_children.at(index).get();
+	}
+
+	void AddChild(Bar* obj)
+	{
+		m_children.emplace_back(obj);
+		m_children.back()->SetOwner(*this);
+	}
+
+private:
+	std::vector<std::unique_ptr<Bar>> m_children;
+};
+
+struct Foo : RefCounted
+{
+	void DoSomething()
+	{
+	}
+};
+
+TEST_CASE("Bar")
+{
+	RefCountPtr<Bar> parent(new Bar());
+	parent->AddChild(new Bar());
+	auto child = parent->GetChild(0);
+	parent->RemoveChild(0);
+}
+
+
+TEST_CASE("Intrusive ptr sample")
+{
+	boost::intrusive_ptr<Foo> foo(new Foo());
+	foo->DoSomething();
+}
 
 TEST_CASE("DetachableRefCounted is destroyed when its ref count is 0")
 {
@@ -132,16 +179,16 @@ TEST_CASE("Object attachment")
 	}
 }
 
-struct Foo : RefCounted
-{
-	void DoSomething()
-	{
-	}
-};
-
 RefCountPtr<Obj> MakeRC(int& deathCounter)
 {
 	return { new Obj(Increment(deathCounter)) };
+}
+
+TEST_CASE("Service methods are not accessible via RefCountPtr")
+{
+	RefCountPtr<Foo> p(new Foo());
+	//p->AddRef(); // won't compile
+	//p->Release(); // won't compile
 }
 
 TEST_CASE("RefCountPtr is released on destruction")
@@ -237,6 +284,62 @@ SCENARIO("RefCountPtr move assignment")
 			{
 				CHECK(p);
 				CHECK(cnt == 0);
+			}
+		}
+	}
+}
+
+SCENARIO("DetachableRefCounted connection management")
+{
+	GIVEN("A parent with attached child")
+	{
+		int parentDeathCnt = 0;
+		auto parent = MakeRC(parentDeathCnt);
+		int childDeathCnt = 0;
+		auto child = MakeRC(childDeathCnt);
+		parent->AddChild(child.Get());
+		WHEN("There are no child refs")
+		{
+			child.Reset();
+			THEN("Child lives until parent death")
+			{
+				CHECK(childDeathCnt == 0);
+				CHECK(parentDeathCnt == 0);
+				parent.Reset();
+				CHECK(childDeathCnt == 1);
+				CHECK(parentDeathCnt == 1);
+			}
+		}
+
+		WHEN("child is detached from parent without a pointer to child")
+		{
+			child.Reset();
+			parent->RemoveChild(0);
+			THEN("child is deleted")
+			{
+				CHECK(childDeathCnt == 1);
+				AND_THEN("parent is deleted when there are no parent links")
+				{
+					CHECK(parentDeathCnt == 0);
+					parent.Reset();
+					CHECK(parentDeathCnt == 1);
+				}
+			}
+		}
+
+		WHEN("child is detached from parent having self refs")
+		{
+			parent->RemoveChild(0);
+			THEN("child is deleted separately from parent")
+			{
+				CHECK(parentDeathCnt == 0);
+				CHECK(childDeathCnt == 0);
+				parent.Reset();
+				CHECK(parentDeathCnt == 1);
+				CHECK(childDeathCnt == 0);
+				child.Reset();
+				CHECK(parentDeathCnt == 1);
+				CHECK(childDeathCnt == 1);
 			}
 		}
 	}
