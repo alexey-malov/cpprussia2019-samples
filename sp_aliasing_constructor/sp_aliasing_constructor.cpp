@@ -3,6 +3,7 @@
 
 #include "pch.h"
 #include "UniversalPtr.h"
+#include "UniversalPtrBenchmark.h"
 
 using namespace std;
 
@@ -87,8 +88,52 @@ void Foo(shared_ptr<Bar> bar)
 
 }
 
+template <typename Ptr>
+void BenchmarkPtr(Ptr p)
+{
+	auto start = std::chrono::high_resolution_clock::now();
+	for (int i = 0; i < 1'000'000'000; ++i)
+	{
+		p = TestPtr(move(p));
+	}
+	auto duration = std::chrono::high_resolution_clock::now() - start;
+	std::cout << "  Result:" << *p << ", duration: " << chrono::duration_cast<chrono::milliseconds>(duration).count() << "ms\n";
+}
+
+void BenchmarkUniversalPtr()
+{
+	{
+		cout << "Universal ptr(raw)\n";
+		unsigned v = 0;
+		BenchmarkPtr((UniversalPtr<unsigned>(&v)));
+	}
+	{
+		cout << "Universal ptr(shared)\n";
+		BenchmarkPtr(UniversalPtr<unsigned>{ make_shared<unsigned>(0) });
+	}
+	{
+		cout << "Raw ptr\n";
+		unsigned v = 0;
+		BenchmarkPtr(&v);
+	}
+	{
+		cout << "Unique ptr\n";
+		BenchmarkPtr(make_unique<unsigned>(0));
+	}
+	{
+		cout << "Shared ptr\n";
+		BenchmarkPtr(make_shared<unsigned>(0));
+	}
+
+}
+
+
 int main()
 {
+	{
+		BenchmarkUniversalPtr();
+	}
+
 	{
 		Bar bar;
 		auto sp = MakeUnowningSP(bar);

@@ -21,12 +21,18 @@
     <ClInclude Include="UniversalPtr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="UniversalPtrBenchmark.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="sp_aliasing_constructor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UniversalPtrBenchmark.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -12,14 +12,14 @@ struct UniversalPtr
 
 	template <typename U,
 		typename = std::enable_if_t<std::is_convertible<U&, T&>::value>>
-	UniversalPtr(U& ref)
+	UniversalPtr(U& ref) noexcept
 		: m_ptr(std::shared_ptr<T>(), std::addressof(ref))
 	{
 	}
 
 	template <typename U,
 		typename = std::enable_if_t<std::is_convertible<U*, T*>::value>>
-	UniversalPtr(U* ptr)
+	UniversalPtr(U* ptr) noexcept
 		: m_ptr(std::shared_ptr<T>(), ptr)
 	{
 	}

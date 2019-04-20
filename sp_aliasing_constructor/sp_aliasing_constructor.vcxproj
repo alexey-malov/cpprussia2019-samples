@@ -157,6 +157,7 @@
   <ItemGroup>
     <ClInclude Include="pch.h" />
     <ClInclude Include="UniversalPtr.h" />
+    <ClInclude Include="UniversalPtrBenchmark.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -166,6 +167,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="sp_aliasing_constructor.cpp" />
+    <ClCompile Include="UniversalPtrBenchmark.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
